@@ -75,7 +75,7 @@ export function Contact() {
               delay: i * 0.08,
               ease: [0.22, 1, 0.36, 1],
             }}
-            className="card p-6 md:p-8 group flex flex-col justify-between min-h-[160px]"
+            className="card p-6 md:p-8 group flex flex-col justify-between min-h-[160px] min-w-0"
           >
             <div className="flex items-center justify-between mb-8">
               <c.icon

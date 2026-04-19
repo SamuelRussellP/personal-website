@@ -65,6 +65,11 @@
 
 html {
   scroll-behavior: smooth;
+  /* Anchor links on mobile: offset for the fixed 4rem nav + breathing room */
+  scroll-padding-top: 5rem;
+  /* Prevent iOS Safari from bumping font sizes on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -75,6 +80,23 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100dvh;
+  /* Decorative glows / meshes can extend past the viewport — clip them so
+     mobile browsers don't expose a horizontal scroll bar. */
+  overflow-x: hidden;
+  /* Remove the blue flash on tap in mobile Safari / Chrome */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch-device ergonomics: remove 300ms double-tap zoom delay on interactive
+   elements, and make sure minimum-size hit targets are comfortable. */
+a,
+button,
+[role="button"],
+summary,
+input,
+select,
+textarea {
+  touch-action: manipulation;
 }
 
 /* Typography helpers */
