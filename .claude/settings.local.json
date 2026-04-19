@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/samue/IdeaProjects/personal-website//**)",
+      "Read(//c/Users/samue/.claude/projects/C--Users-samue-IdeaProjects-personal-website/memory//**)"
+    ]
+  }
+}
