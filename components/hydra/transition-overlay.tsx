@@ -35,12 +35,32 @@ interface TransitionDetail {
   direction?: TransitionDirection;
 }
 
+function scrollToHashWhenReady(hash: string) {
+  let tries = 0;
+  const tryScroll = () => {
+    const el = document.getElementById(hash);
+    if (el) {
+      const lenis = window.__lenis;
+      if (lenis) {
+        // force: true — Lenis may still be stopped when this fires.
+        lenis.scrollTo(el, { offset: -80, immediate: true, force: true });
+      }
+      const y = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo(0, y);
+      return;
+    }
+    if (tries++ < 60) requestAnimationFrame(tryScroll);
+  };
+  requestAnimationFrame(tryScroll);
+}
+
 export function HydraTransitionOverlay() {
   const router = useRouter();
   const [active, setActive] = React.useState(false);
   const [direction, setDirection] = React.useState<TransitionDirection>(
     "forward"
   );
+  const pendingHashRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     const handler = (e: Event) => {
@@ -56,6 +76,14 @@ export function HydraTransitionOverlay() {
         String(Date.now())
       );
 
+      // Separate the target section id from the destination path so the URL
+      // stays clean (no #hash). We still use the id to scroll after arrival.
+      const hashIndex = href.indexOf("#");
+      const hash = hashIndex >= 0 ? href.slice(hashIndex + 1) : "";
+      const pathOnly = hashIndex >= 0 ? href.slice(0, hashIndex) || "/" : href;
+      pendingHashRef.current = hash || null;
+
+      window.__lenis?.stop();
       document.body.style.overflow = "hidden";
       setDirection(dir);
       setActive(true);
@@ -63,7 +91,18 @@ export function HydraTransitionOverlay() {
       const navDelay =
         dir === "reverse" ? REVERSE_NAV_AT_MS : FORWARD_NAV_AT_MS;
       const navTimer = setTimeout(() => {
-        router.push(href);
+        // Skip Next's own scroll — body is locked and Lenis is stopped, so
+        // it'd fight our state. Position the scroll ourselves on the next
+        // frame, while the overlay is still opaque.
+        router.push(pathOnly, { scroll: false });
+        requestAnimationFrame(() => {
+          if (hash) {
+            scrollToHashWhenReady(hash);
+          } else {
+            window.__lenis?.scrollTo(0, { immediate: true, force: true });
+            window.scrollTo(0, 0);
+          }
+        });
       }, navDelay);
 
       return () => clearTimeout(navTimer);
@@ -87,7 +126,19 @@ export function HydraTransitionOverlay() {
           setTimeout(() => {
             setActive(false);
             document.body.style.overflow = "";
+            window.__lenis?.start();
             sessionStorage.removeItem("hydra-transition-playing");
+            const hash = pendingHashRef.current;
+            pendingHashRef.current = null;
+            if (hash) {
+              scrollToHashWhenReady(hash);
+            } else {
+              // No hash: position at top of the new page. Lenis has its own
+              // scroll state, so reach straight into it instead of only
+              // calling window.scrollTo.
+              window.__lenis?.scrollTo(0, { immediate: true });
+              window.scrollTo(0, 0);
+            }
           }, LINGER_AFTER_DONE_MS);
         }}
       />

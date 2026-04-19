@@ -113,7 +113,7 @@ export function HydraHero() {
                 <span className="ml-2 text-[var(--accent)]">{hydra.origin}</span>
               </div>
               <div className="font-mono-meta text-[11px] uppercase tracking-[0.2em] text-[var(--subtle)]">
-                <span>Codename</span>
+                <span>Type</span>
                 <span className="ml-2 text-foreground">{hydra.codename}</span>
               </div>
               <div className="font-mono-meta text-[11px] uppercase tracking-[0.2em] text-[var(--subtle)]">

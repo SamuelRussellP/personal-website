@@ -240,13 +240,13 @@ export const journey: JourneyStop[] = [
     headline:
       "Leading quality into the AI-agent era — automation, metrics, and Hydra shipping alongside us.",
     narrative:
-      "Promoted to Team Lead. Responsible for automation strategy across multiple products, quality metrics that actually drive decisions, and keeping developers, PMs, and QA engineers rowing in the same direction. Proposed and built Hydra — a Jira-driven QA agent on Claude and Codex — as my own initiative to meet the AI-agent era head-on. Now live on staging and still actively evolving. Frees the team to spend their hours on test strategy and edge-case thinking instead of manual regression.",
+      "Promoted to Team Lead. Responsible for automation strategy across multiple products, quality metrics that actually drive decisions, and keeping developers, PMs, and QA engineers rowing in the same direction. Proposed Hydra — a Jira-driven QA agent on Claude and Codex — and led the QA team building it as our move to meet the AI-agent era head-on. Now live on staging and still actively evolving. Frees the team to spend their hours on test strategy and edge-case thinking instead of manual regression.",
     highlights: [
       "Rolled out automated testing frameworks across multiple products",
       "Own quality metrics — surfacing data that product and engineering act on",
       "Coordinate cross-functional delivery between dev, product, and QA",
       "Mentoring and scaling the QA practice as the product grows",
-      "Self-initiated and built Hydra — a Jira-driven QA agent — now live on staging, validating tickets across backend, frontend, and hybrid flows",
+      "Initiated Hydra and led the team building it — a Jira-driven QA agent now live on staging, validating tickets across backend, frontend, and hybrid flows",
       "Codified the team's QA discipline as reusable agent skills: systematic debugging, TDD, verification-before-completion, parallel dispatch",
     ],
     projects: [
@@ -254,7 +254,7 @@ export const journey: JourneyStop[] = [
         name: "Hydra — QA Validation Agent",
         period: "Live · 2026 – ongoing",
         summary:
-          "A Jira-driven QA agent I designed and built. Takes a ticket key and routes it through the right validation head — backend API verification, frontend UI verification, or a hybrid flow. Captures discovery notes, Postman collections, and test reports, then publishes the evidence bundle to cloud storage for reviewers. Live on staging, still actively growing new heads.",
+          "A Jira-driven QA agent I designed and the QA team I lead built. Takes a ticket key and routes it through the right validation head — backend API verification, frontend UI verification, or a hybrid flow. Captures discovery notes, Postman collections, and test reports, then publishes the evidence bundle to cloud storage for reviewers. Live on staging, still actively growing new heads.",
         href: "/hydra",
         cta: "Read the full Hydra case study",
       },
@@ -302,16 +302,16 @@ export const hydra = {
   origin: "Self-initiated",
 
   tagline:
-    "A multi-headed QA agent I built to meet the AI-agent era head-on — Jira in, validated tickets out.",
+    "A multi-headed QA agent we built to meet the AI-agent era head-on — Jira in, validated tickets out.",
 
   elevator:
-    "Hydra is a QA agent I proposed and built on Claude and Codex — my own move in the AI-agent era reshaping our craft. Drop it a Jira ticket key: it routes the ticket through the right validation head (backend, frontend, or hybrid), runs the checks against staging, captures evidence, and publishes the bundle back to reviewers. It's live, it's evolving, and it's freeing the team to do the work only humans can.",
+    "Hydra is a QA agent I proposed and the team I lead built on Claude and Codex — our move in the AI-agent era reshaping our craft. Drop it a Jira ticket key: it routes the ticket through the right validation head (backend, frontend, or hybrid), runs the checks against staging, captures evidence, and publishes the bundle back to reviewers. It's live, it's evolving, and it's freeing the team to do the work only humans can.",
 
   problem:
     "Manual regression doesn't scale. Every ticket on staging needed human eyes for API contracts, UI flows, or both — hours of repetitive click-through that crowded out test strategy, edge-case hunting, and the work that actually moves quality forward. Meanwhile, AI agents were getting good enough to matter.",
 
   solution:
-    "I pitched, designed, and built Hydra myself — no one assigned it. A Jira-driven agent that takes over the repetitive half so the team can focus on the human half. Trigger it with a ticket key; it figures out what to test, runs the checks, captures the evidence, and hands back a clean report. Built on Claude Code's skills model so the behavior is readable, testable, and improves every sprint.",
+    "I pitched and designed the approach; the QA team I lead built it — no one assigned us. A Jira-driven agent that takes over the repetitive half so the team can focus on the human half. Trigger it with a ticket key; it figures out what to test, runs the checks, captures the evidence, and hands back a clean report. Built on Claude Code's skills model so the behavior is readable, testable, and improves every sprint.",
 
   heads: [
     {
@@ -438,7 +438,7 @@ export const hydra = {
   ],
 
   proudOf: [
-    "Took the initiative — nobody assigned Hydra. I saw the AI-agent moment and built my own answer.",
+    "Took the initiative — nobody assigned Hydra. I saw the AI-agent moment and rallied the team to build our answer.",
     "Live on staging — not a demo, not a slide deck. Real traffic is running through it.",
     "Growing every sprint — new heads, new skills, new coverage.",
     "Frees the team for higher-value work — the thinking humans are uniquely strong at.",

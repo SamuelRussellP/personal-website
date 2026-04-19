@@ -3,6 +3,12 @@
 import * as React from "react";
 import Lenis from "lenis";
 
+declare global {
+  interface Window {
+    __lenis?: Lenis;
+  }
+}
+
 /**
  * SmoothScroll — site-wide inertial scroll via Lenis.
  * Skipped when the user prefers reduced motion or on touch devices
@@ -23,6 +29,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
       touchMultiplier: 2,
       infinite: false,
     });
+    window.__lenis = lenis;
 
     let raf = 0;
     const tick = (time: number) => {
@@ -49,6 +56,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
       cancelAnimationFrame(raf);
       document.removeEventListener("click", onAnchorClick);
       lenis.destroy();
+      if (window.__lenis === lenis) window.__lenis = undefined;
     };
   }, []);
 
