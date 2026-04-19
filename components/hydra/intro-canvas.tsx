@@ -57,7 +57,11 @@ function sampleWordPixels(
   ctx.fillRect(0, 0, width, height);
   const fontPx = Math.min(width * 0.22, height * 0.42);
   ctx.fillStyle = "#fff";
-  ctx.font = `${fontPx}px "Instrument Serif", "Times New Roman", serif`;
+  // End the stack with a generic family ("serif") — iOS doesn't ship
+  // "Times New Roman" by default, and if Instrument Serif isn't ready
+  // canvas fillText on iOS Safari can draw no visible glyphs unless it
+  // can resolve at least one concrete family in the stack.
+  ctx.font = `${fontPx}px "Instrument Serif", Georgia, "Times New Roman", Times, serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(text, width / 2, height / 2);
@@ -122,7 +126,13 @@ export function HydraIntroCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const DURATION = reverse ? REVERSE_DURATION_MS : FORWARD_DURATION_MS;
+    let cancelled = false;
+    let raf = 0;
+    let safety: ReturnType<typeof setTimeout> | null = null;
+
+    const run = () => {
+      if (cancelled) return;
+      const DURATION = reverse ? REVERSE_DURATION_MS : FORWARD_DURATION_MS;
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = window.innerWidth;
@@ -137,6 +147,12 @@ export function HydraIntroCanvas({
     const cy = height / 2;
 
     const wordPixels = sampleWordPixels(word, width, height);
+    // Safety: if no pixels were sampled (fonts still broken somehow),
+    // bail out rather than showing 2.4s of invisible background paint.
+    if (wordPixels.length === 0) {
+      onComplete?.();
+      return;
+    }
 
     // Emerald palette — core → halo pairs for soft glow
     const palette: { core: string; halo: string }[] = [
@@ -193,7 +209,6 @@ export function HydraIntroCanvas({
     }
 
     const start = performance.now();
-    let raf = 0;
 
     const drawParticle = (
       g: CanvasRenderingContext2D,
@@ -390,14 +405,24 @@ export function HydraIntroCanvas({
       }
     };
 
-    raf = requestAnimationFrame(frame);
-    const safety = setTimeout(() => {
-      onComplete?.();
-    }, DURATION + 400);
+      raf = requestAnimationFrame(frame);
+      safety = setTimeout(() => {
+        onComplete?.();
+      }, DURATION + 400);
+    };
+
+    // Wait for fonts before sampling — on iOS Safari, canvas.fillText with
+    // an unloaded custom font can draw invisible glyphs, which makes the
+    // offscreen sampler return zero points and the whole intro render as
+    // 2.4 seconds of blank background. document.fonts.ready resolves once
+    // the page's declared fonts are either loaded or given up on.
+    const fontsReady = document.fonts?.ready ?? Promise.resolve();
+    fontsReady.then(run).catch(run);
 
     return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(safety);
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (safety) clearTimeout(safety);
       ctx.globalAlpha = 1;
     };
   }, [word, onComplete, reverse]);
