@@ -302,19 +302,19 @@ export function Hero() {
         >
           <span
             aria-hidden
-            className="block text-5xl sm:text-6xl md:text-8xl lg:text-9xl"
+            className="block text-7xl sm:text-8xl md:text-8xl lg:text-9xl"
           >
             <BlurLetters text="Samuel" delay={0.15} />
           </span>
           <span
             aria-hidden
-            className="block text-5xl sm:text-6xl md:text-8xl lg:text-9xl text-[var(--muted)]"
+            className="block text-7xl sm:text-8xl md:text-8xl lg:text-9xl text-[var(--muted)]"
           >
             <BlurLetters text="Russell" delay={0.45} />
           </span>
           <span
             aria-hidden
-            className="block text-4xl sm:text-5xl md:text-7xl lg:text-8xl text-[var(--subtle)]"
+            className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-[var(--subtle)]"
           >
             <BlurLetters text="Prajasantosa" delay={0.75} />
           </span>
