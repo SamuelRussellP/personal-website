@@ -8,8 +8,8 @@ import dynamic from "next/dynamic";
  *
  * - Dynamically imports the 3D component (no SSR) so Three.js (~170kb)
  *   stays out of the initial bundle and doesn't run server-side.
- * - Gates on prefers-reduced-motion and viewport width — keeps mobile devices
- *   on a CSS-only fallback.
+ * - Gates on prefers-reduced-motion — the neural cloud is light enough
+ *   that modern phones render it comfortably, so mobile gets it too.
  * - Provides a graceful CSS fallback element for both initial paint (while
  *   the 3D module loads) and the disabled-motion case.
  */
@@ -40,10 +40,7 @@ export function HydraScene({ className }: { className?: string }) {
     if (typeof window === "undefined") return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)")
       .matches;
-    // Reserve 3D for viewports that can handle it comfortably — mobile stays
-    // on the CSS fallback to preserve battery / GPU.
-    const wide = window.matchMedia("(min-width: 768px)").matches;
-    if (reduce || !wide) return;
+    if (reduce) return;
     setEnabled(true);
   }, []);
 

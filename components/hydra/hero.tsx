@@ -141,7 +141,7 @@ export function HydraHero() {
 
           {/* Right — 3D sculpture. No opacity animation — the 3D needs to be
               fully ready to show the moment the transition overlay lifts. */}
-          <div className="relative aspect-square w-full max-w-[500px] mx-auto lg:mx-0 hidden md:block">
+          <div className="relative aspect-square w-full max-w-[500px] mx-auto lg:mx-0">
             <HydraScene className="absolute inset-0" />
             <div
               aria-hidden
