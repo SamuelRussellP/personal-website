@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import {
+  AnimatePresence,
   motion,
+  useInView,
   useScroll,
   useTransform,
   useSpring,
@@ -17,6 +19,7 @@ import {
   MapPin,
   Calendar,
 } from "lucide-react";
+import { Container } from "./ui/container";
 import { Section } from "./ui/section";
 import { HydraLink } from "./hydra/link";
 import { journey, type JourneyStop, type JourneyKind } from "@/lib/data";
@@ -159,6 +162,63 @@ function ChapterPanel({
         })}
       </ul>
     </aside>
+  );
+}
+
+/* -----------------------------------------------------------
+ * MobileChapterStrip — below-lg counterpart of ChapterPanel.
+ * A slim fixed bar under the nav showing the current chapter,
+ * company, and progress through the timeline. Only mounts while
+ * the user is reading inside the Journey section.
+ * ----------------------------------------------------------- */
+function MobileChapterStrip({
+  activeIndex,
+  total,
+  progress,
+  visible,
+}: {
+  activeIndex: number;
+  total: number;
+  progress: number;
+  visible: boolean;
+}) {
+  const active = journey[activeIndex];
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          key="mobile-chapter-strip"
+          aria-hidden
+          initial={{ y: -24, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -24, opacity: 0 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="lg:hidden fixed top-16 inset-x-0 z-30 pointer-events-none"
+        >
+          <div className="backdrop-blur-xl bg-[color-mix(in_oklab,var(--background)_85%,transparent)] border-b border-[var(--border)]">
+            <Container className="flex items-center gap-3 py-2.5">
+              <span className="font-mono-meta text-[10px] uppercase tracking-[0.22em] text-[var(--subtle)] tabular-nums">
+                {String(activeIndex + 1).padStart(2, "0")}
+                <span className="mx-1">/</span>
+                {String(total).padStart(2, "0")}
+              </span>
+              <span className="font-mono-meta text-[10px] uppercase tracking-[0.16em] text-foreground truncate flex-1 min-w-0">
+                {active.company}
+              </span>
+              <span className="font-mono-meta text-[10px] tabular-nums text-[var(--accent)]">
+                {Math.round(progress * 100)}%
+              </span>
+            </Container>
+            <div className="relative h-px w-full bg-[var(--border)]">
+              <motion.div
+                className="absolute inset-y-0 left-0 bg-[var(--accent)]"
+                style={{ width: `${progress * 100}%` }}
+              />
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -401,6 +461,13 @@ export function Journey() {
   // Top scroll indicator bar (thin line above the timeline that fills)
   const fillWidth = useTransform(smooth, [0, 1], ["0%", "100%"]);
 
+  // Mobile chapter strip visibility — show while the reading zone of the
+  // timeline is on screen. Margin shrinks the trigger area so the bar only
+  // appears once the user has actually scrolled into the content.
+  const stripInView = useInView(containerRef, {
+    margin: "-15% 0px -40% 0px",
+  });
+
   return (
     <Section
       id="journey"
@@ -415,6 +482,13 @@ export function Journey() {
           style={{ width: fillWidth }}
         />
       </div>
+
+      <MobileChapterStrip
+        activeIndex={activeIndex}
+        total={journey.length}
+        progress={progress}
+        visible={stripInView}
+      />
 
       <div
         ref={containerRef}
