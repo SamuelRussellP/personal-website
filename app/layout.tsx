@@ -30,7 +30,10 @@ export const metadata: Metadata = {
   title: "Samuel Russell Prajasantosa — QA Engineer",
   description:
     "The career journey of Samuel Russell Prajasantosa — Software QA Team Lead in Berlin. From Jakarta to Malaysia to Germany, building quality into software one test at a time.",
-  metadataBase: new URL("https://samuelrussell.dev"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ??
+      "https://personal-website-nine-sigma-97.vercel.app"
+  ),
   openGraph: {
     title: "Samuel Russell Prajasantosa — QA Engineer",
     description:
