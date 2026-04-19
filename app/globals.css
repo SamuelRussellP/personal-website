@@ -1,26 +1,249 @@
 @import "tailwindcss";
 
+/*
+  Design System — Samuel Russell Prajasantosa portfolio
+  Style: Modern Minimal + Bento + subtle glass
+  Mode:  Dark-first, light toggle
+  Tokens: semantic (no raw hex in components)
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --background: #fafaf9;     /* zinc-50 */
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;      /* zinc-100 */
+  --border: #e4e4e7;         /* zinc-200 */
+
+  /* Text */
+  --foreground: #09090b;     /* zinc-950 */
+  --muted: #52525b;          /* zinc-600 */
+  --subtle: #a1a1aa;         /* zinc-400 */
+
+  /* Accent — emerald (growth / QA pass) */
+  --accent: #10b981;         /* emerald-500 */
+  --accent-soft: #d1fae5;    /* emerald-100 */
+  --accent-strong: #047857;  /* emerald-700 */
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.dark {
+  --background: #09090b;     /* zinc-950 */
+  --surface: #18181b;        /* zinc-900 */
+  --surface-2: #27272a;      /* zinc-800 */
+  --border: #27272a;         /* zinc-800 */
+  --foreground: #fafafa;     /* zinc-50 */
+  --muted: #a1a1aa;          /* zinc-400 */
+  --subtle: #52525b;         /* zinc-600 */
+  --accent: #34d399;         /* emerald-400 for dark contrast */
+  --accent-soft: rgba(16, 185, 129, 0.12);
+  --accent-strong: #6ee7b7;  /* emerald-300 */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
+
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-instrument-serif);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+}
+
+/* Typography helpers */
+.font-display {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+}
+
+.font-mono-meta {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus rings — visible for accessibility */
+:where(a, button, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent);
+  color: #09090b;
+}
+
+/* Utility: dotted background grid for hero */
+.bg-grid {
+  background-image:
+    radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Reduced motion — respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hide native cursor when custom cursor is active */
+@media (pointer: fine) {
+  html.cursor-custom,
+  html.cursor-custom * {
+    cursor: none !important;
+  }
+}
+
+/* Soft glow for accent items */
+.glow-accent {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent),
+    0 8px 32px -8px color-mix(in oklab, var(--accent) 40%, transparent);
+}
+
+/* Film grain — subtle animated noise for premium texture */
+.noise {
+  position: relative;
+  isolation: isolate;
+}
+.noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+.dark .noise::after {
+  opacity: 0.05;
+}
+
+/* Animated gradient mesh — 3 drifting emerald blobs */
+.mesh-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.mesh-bg::before,
+.mesh-bg::after,
+.mesh-bg > span {
+  content: "";
+  position: absolute;
+  width: 40rem;
+  height: 40rem;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.22;
+  will-change: transform;
+}
+.mesh-bg::before {
+  background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
+  top: -10%;
+  left: 10%;
+  animation: meshDrift1 18s ease-in-out infinite alternate;
+}
+.mesh-bg::after {
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--accent) 70%, #5eead4) 0%,
+    transparent 60%
+  );
+  bottom: -20%;
+  right: 5%;
+  animation: meshDrift2 22s ease-in-out infinite alternate;
+  opacity: 0.18;
+}
+.mesh-bg > span {
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--accent) 50%, #0ea5e9) 0%,
+    transparent 60%
+  );
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: meshDrift3 26s ease-in-out infinite alternate;
+  opacity: 0.15;
+}
+@keyframes meshDrift1 {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(4rem, 3rem) scale(1.15);
+  }
+}
+@keyframes meshDrift2 {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-5rem, -2rem) scale(1.1);
+  }
+}
+@keyframes meshDrift3 {
+  from {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    transform: translate(-42%, -58%) scale(1.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mesh-bg::before,
+  .mesh-bg::after,
+  .mesh-bg > span {
+    animation: none !important;
+  }
+}
+
+/* Card base */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition: transform 200ms var(--ease-out),
+              border-color 200ms var(--ease-out),
+              box-shadow 200ms var(--ease-out);
+}
+
+.card:hover {
+  border-color: color-mix(in oklab, var(--accent) 50%, var(--border));
 }
