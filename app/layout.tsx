@@ -6,6 +6,7 @@ import { Curtain } from "@/components/curtain";
 import { Cursor } from "@/components/cursor";
 import { SmoothScroll } from "@/components/smooth-scroll";
 import { HydraTransitionOverlay } from "@/components/hydra/transition-overlay";
+import { BackgroundAudioProvider } from "@/components/background-audio";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -80,16 +81,18 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <a
-            href="#main"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[200] focus:px-4 focus:py-2 focus:bg-surface focus:border focus:rounded-md"
-          >
-            Skip to content
-          </a>
-          <Curtain />
-          <HydraTransitionOverlay />
-          <Cursor />
-          <SmoothScroll>{children}</SmoothScroll>
+          <BackgroundAudioProvider>
+            <a
+              href="#main"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[200] focus:px-4 focus:py-2 focus:bg-surface focus:border focus:rounded-md"
+            >
+              Skip to content
+            </a>
+            <Curtain />
+            <HydraTransitionOverlay />
+            <Cursor />
+            <SmoothScroll>{children}</SmoothScroll>
+          </BackgroundAudioProvider>
         </ThemeProvider>
       </body>
     </html>

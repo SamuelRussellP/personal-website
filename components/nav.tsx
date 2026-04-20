@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { SoundToggle } from "./background-audio";
 import { Container } from "./ui/container";
 import { HydraBackLink } from "./hydra/back-link";
 import { cn } from "@/lib/utils";
@@ -139,6 +140,7 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <SoundToggle />
           <ThemeToggle />
           <button
             type="button"
