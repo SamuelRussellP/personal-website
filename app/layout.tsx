@@ -43,14 +43,21 @@ export const metadata: Metadata = {
   description:
     "The career journey of Samuel Russell Prajasantosa — Software QA Team Lead in Berlin. From Jakarta to Malaysia to Germany, building quality into software one test at a time.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ??
-      "https://personal-website-nine-sigma-97.vercel.app"
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://samuelrussellp.com"
   ),
   openGraph: {
     title: "Samuel Russell Prajasantosa — QA Engineer",
     description:
       "Software QA Team Lead, Berlin. Career journey across Indonesia, Malaysia, and Germany.",
+    url: "/",
+    siteName: "samuelrussellp.com",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Samuel Russell Prajasantosa — QA Engineer",
+    description:
+      "Software QA Team Lead, Berlin. Career journey across Indonesia, Malaysia, and Germany.",
   },
 };
 
