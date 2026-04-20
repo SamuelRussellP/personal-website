@@ -10,16 +10,38 @@ import { Container } from "./ui/container";
 import { HydraBackLink } from "./hydra/back-link";
 import { cn } from "@/lib/utils";
 
-const links = [
-  { hash: "#journey", label: "Journey" },
-  { hash: "#education", label: "Education" },
-  { hash: "#skills", label: "Skills" },
-  { hash: "#contact", label: "Contact" },
+type NavLink = {
+  href: string;
+  label: string;
+  kind: "anchor" | "route";
+};
+
+const homeLinks: NavLink[] = [
+  { href: "#journey", label: "Journey", kind: "anchor" },
+  { href: "#education", label: "Education", kind: "anchor" },
+  { href: "#skills", label: "Skills", kind: "anchor" },
+  { href: "#contact", label: "Contact", kind: "anchor" },
+  { href: "/experience", label: "Experience", kind: "route" },
+];
+
+const hydraLinks: NavLink[] = [
+  { href: "/#journey", label: "Journey", kind: "route" },
+  { href: "/#education", label: "Education", kind: "route" },
+  { href: "/#skills", label: "Skills", kind: "route" },
+  { href: "/#contact", label: "Contact", kind: "route" },
+];
+
+const experienceLinks: NavLink[] = [
+  { href: "/", label: "Home", kind: "route" },
+  { href: "#acts", label: "Acts", kind: "anchor" },
+  { href: "#craft", label: "Craft", kind: "anchor" },
+  { href: "#connect", label: "Connect", kind: "anchor" },
 ];
 
 export function Nav() {
   const pathname = usePathname();
   const onHydra = pathname?.startsWith("/hydra") ?? false;
+  const onExperience = pathname?.startsWith("/experience") ?? false;
   const [scrolled, setScrolled] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const reduce = useReducedMotion();
@@ -54,12 +76,39 @@ export function Nav() {
     };
   }, [open]);
 
-  const hrefFor = (hash: string) => (onHydra ? `/${hash}` : hash);
-
   const brandClassName =
     "font-mono-meta text-sm tracking-tight text-foreground";
   const linkClassName =
     "font-mono-meta text-xs uppercase tracking-[0.18em] text-[var(--muted)] hover:text-foreground transition-colors";
+  const links = onHydra
+    ? hydraLinks
+    : onExperience
+      ? experienceLinks
+      : homeLinks;
+
+  const renderLink = (link: NavLink, className: string) => {
+    if (onHydra) {
+      return (
+        <HydraBackLink key={link.href} href={link.href} className={className}>
+          {link.label}
+        </HydraBackLink>
+      );
+    }
+
+    if (link.kind === "route") {
+      return (
+        <Link key={link.href} href={link.href} className={className}>
+          {link.label}
+        </Link>
+      );
+    }
+
+    return (
+      <a key={link.href} href={link.href} className={className}>
+        {link.label}
+      </a>
+    );
+  };
 
   return (
     <header
@@ -86,22 +135,7 @@ export function Nav() {
         )}
 
         <nav className="hidden md:flex items-center gap-8" aria-label="Primary">
-          {links.map((l) => {
-            const href = hrefFor(l.hash);
-            return onHydra ? (
-              <HydraBackLink
-                key={l.hash}
-                href={href}
-                className={linkClassName}
-              >
-                {l.label}
-              </HydraBackLink>
-            ) : (
-              <a key={l.hash} href={href} className={linkClassName}>
-                {l.label}
-              </a>
-            );
-          })}
+          {links.map((link) => renderLink(link, linkClassName))}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -148,8 +182,7 @@ export function Nav() {
                 // until the disperse animation finishes.
                 onClickCapture={() => setOpen(false)}
               >
-                {links.map((l) => {
-                  const href = hrefFor(l.hash);
+                {links.map((link) => {
                   const className =
                     "flex items-center justify-between py-4 font-display text-2xl text-foreground hover:text-[var(--accent)] transition-colors";
                   const chevron = (
@@ -161,15 +194,20 @@ export function Nav() {
                     </span>
                   );
                   return (
-                    <li key={l.hash}>
+                    <li key={link.href}>
                       {onHydra ? (
-                        <HydraBackLink href={href} className={className}>
-                          <span>{l.label}</span>
+                        <HydraBackLink href={link.href} className={className}>
+                          <span>{link.label}</span>
                           {chevron}
                         </HydraBackLink>
+                      ) : link.kind === "route" ? (
+                        <Link href={link.href} className={className}>
+                          <span>{link.label}</span>
+                          {chevron}
+                        </Link>
                       ) : (
-                        <a href={href} className={className}>
-                          <span>{l.label}</span>
+                        <a href={link.href} className={className}>
+                          <span>{link.label}</span>
                           {chevron}
                         </a>
                       )}

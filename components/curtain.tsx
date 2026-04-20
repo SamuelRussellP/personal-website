@@ -9,18 +9,17 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
  * Shows the brand mark briefly, then slides away upward.
  * Auto-dismisses after ~1.2s. Respects reduced-motion (skips entirely).
  *
- * Skipped on /hydra — that route has its own dedicated intro animation.
+ * Skipped on /hydra and /experience — those routes have their own
+ * atmosphere and don't need the extra sweep.
  */
 export function Curtain() {
   const reduce = useReducedMotion();
   const pathname = usePathname();
-  const [show, setShow] = React.useState(true);
+  const skip = pathname?.startsWith("/hydra") || pathname?.startsWith("/experience");
+  const [show, setShow] = React.useState(() => !skip);
 
   React.useEffect(() => {
-    if (reduce || pathname?.startsWith("/hydra")) {
-      setShow(false);
-      return;
-    }
+    if (reduce || skip || !show) return;
     // Prevent scroll during curtain
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -33,10 +32,10 @@ export function Curtain() {
       clearTimeout(t);
       document.body.style.overflow = prev;
     };
-  }, [reduce, pathname]);
+  }, [reduce, skip, show]);
 
   if (reduce) return null;
-  if (pathname?.startsWith("/hydra")) return null;
+  if (skip) return null;
 
   return (
     <AnimatePresence>
