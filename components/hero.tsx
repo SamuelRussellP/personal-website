@@ -6,58 +6,126 @@ import { ArrowDown, MapPin } from "lucide-react";
 import { Container } from "./ui/container";
 import { profile } from "@/lib/data";
 
-/* -----------------------------------------------------------
- * BlurLetters — staggered blur-in text reveal
- * ----------------------------------------------------------- */
-function BlurLetters({
-  text,
-  delay = 0,
-  stagger = 0.035,
-  className,
-}: {
+// Hero reveal timing — sequenced so each beat lands after the previous
+// element has had a moment to read. Curtain finishes at ~1.2s and slides
+// up over the next 0.9s, so we begin typing at 1.5s — after the page has
+// emerged but before the curtain has fully cleared, giving a layered feel.
+const TYPING_PACE_MS = 95; // milliseconds between keystrokes (~10 cps)
+const NAME_START_MS = 1500;
+// Computed offsets in seconds (for framer-motion `delay` props elsewhere)
+const TYPING_END_S =
+  (NAME_START_MS + (6 + 7 + 12) * TYPING_PACE_MS) / 1000;
+const SUBLINE_AT = TYPING_END_S - 0.6; // overlaps the tail of typing
+const CTA_AT = TYPING_END_S + 0.3;
+
+type TypingLine = {
   text: string;
-  delay?: number;
-  stagger?: number;
   className?: string;
+  /** Inclusive — caret should keep blinking here once typing is done. */
+  isLast?: boolean;
+};
+
+/* -----------------------------------------------------------
+ * TypingSequence — true typewriter reveal across multiple lines.
+ *
+ * A single counter ticks once every TYPING_PACE_MS, and each line
+ * renders the substring of its text up to its share of the counter.
+ * The caret sits at the end of whichever line is currently being
+ * typed, then settles at the end of the last line and blinks.
+ * Reduced-motion shows everything immediately with a static caret.
+ * ----------------------------------------------------------- */
+function TypingSequence({
+  lines,
+  startDelayMs = 0,
+  paceMs = TYPING_PACE_MS,
+}: {
+  lines: TypingLine[];
+  startDelayMs?: number;
+  paceMs?: number;
 }) {
   const reduce = useReducedMotion();
-  const words = text.split(" ");
+  const total = React.useMemo(
+    () => lines.reduce((s, l) => s + l.text.length, 0),
+    [lines]
+  );
+  const [count, setCount] = React.useState(reduce ? 1e9 : 0);
+  const fullText = React.useMemo(
+    () => lines.map((l) => l.text).join(" "),
+    [lines]
+  );
 
+  React.useEffect(() => {
+    if (reduce) return;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const startTimer = setTimeout(() => {
+      interval = setInterval(() => {
+        setCount((c) => {
+          if (c >= total) {
+            if (interval) clearInterval(interval);
+            return c;
+          }
+          return c + 1;
+        });
+      }, paceMs);
+    }, startDelayMs);
+
+    return () => {
+      clearTimeout(startTimer);
+      if (interval) clearInterval(interval);
+    };
+  }, [total, paceMs, startDelayMs, reduce]);
+
+  // Cumulative offsets: offsets[i] = chars consumed by lines 0..i-1.
+  // Computed in useMemo so the render body stays declarative — no
+  // "reassign variable after render" lint complaints.
+  const offsets = React.useMemo(() => {
+    const out: number[] = [];
+    let acc = 0;
+    for (const l of lines) {
+      out.push(acc);
+      acc += l.text.length;
+    }
+    return out;
+  }, [lines]);
+
+  const done = count >= total;
   return (
-    <span className={className} aria-label={text}>
-      {words.map((word, wi) => (
-        <span key={wi} className="inline-block whitespace-nowrap mr-[0.2em]">
-          {word.split("").map((ch, ci) => (
-            <motion.span
-              key={ci}
-              aria-hidden
-              initial={
-                reduce ? { opacity: 0 } : { opacity: 0, y: 32, filter: "blur(12px)" }
-              }
-              animate={
-                reduce
-                  ? { opacity: 1 }
-                  : { opacity: 1, y: 0, filter: "blur(0px)" }
-              }
-              transition={{
-                duration: reduce ? 0.3 : 0.9,
-                delay:
-                  delay +
-                  (reduce
-                    ? 0
-                    : wi * 0.08 +
-                      ci * stagger +
-                      words.slice(0, wi).join("").length * stagger),
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className="inline-block"
-            >
-              {ch}
-            </motion.span>
-          ))}
-        </span>
-      ))}
+    <span aria-label={fullText}>
+      {lines.map((line, i) => {
+        const lineLen = line.text.length;
+        const consumed = offsets[i];
+        const visibleHere = Math.max(0, Math.min(count - consumed, lineLen));
+        const lineActive =
+          !done && count > consumed && count <= consumed + lineLen;
+        const showCaretHere = lineActive || (done && line.isLast);
+        return (
+          <span key={i} aria-hidden className={line.className}>
+            {line.text.slice(0, visibleHere)}
+            {showCaretHere && <TypingCaret blinking={done} />}
+          </span>
+        );
+      })}
     </span>
+  );
+}
+
+/* -----------------------------------------------------------
+ * TypingCaret — thin emerald block that sits flush against the
+ * baseline. Solid while typing (so it reads as the cursor moving
+ * with each keystroke), starts blinking once typing is done.
+ * ----------------------------------------------------------- */
+function TypingCaret({ blinking }: { blinking: boolean }) {
+  return (
+    <span
+      aria-hidden
+      // align-baseline + height ≈ cap height puts the caret flush against
+      // the text baseline, so it visually sits beside the last glyph
+      // instead of floating in the middle of the line.
+      className={
+        "inline-block ml-[0.06em] align-baseline h-[0.72em] w-[0.06em] bg-[var(--accent)]" +
+        (blinking ? " animate-caret-blink" : "")
+      }
+    />
   );
 }
 
@@ -300,31 +368,38 @@ export function Hero() {
           className="font-display leading-[0.9] tracking-tight text-foreground will-change-transform [transform-style:preserve-3d] transition-[transform] duration-[400ms] ease-out"
           style={{ transformOrigin: "50% 50%" }}
         >
-          <span
-            aria-hidden
-            className="block text-7xl sm:text-8xl md:text-8xl lg:text-9xl"
-          >
-            <BlurLetters text="Samuel" delay={0.15} />
-          </span>
-          <span
-            aria-hidden
-            className="block text-7xl sm:text-8xl md:text-8xl lg:text-9xl text-[var(--muted)]"
-          >
-            <BlurLetters text="Russell" delay={0.45} />
-          </span>
-          <span
-            aria-hidden
-            className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-[var(--subtle)]"
-          >
-            <BlurLetters text="Prajasantosa" delay={0.75} />
-          </span>
+          {/* Typewriter cascade: a single counter ticks once every
+              TYPING_PACE_MS, the lines render text.slice(0, n) of their
+              share, and the caret moves with the cursor — Samuel,
+              Russell, Prajasantosa — settling at the end and blinking. */}
+          <TypingSequence
+            startDelayMs={NAME_START_MS}
+            lines={[
+              {
+                text: "Samuel",
+                className:
+                  "block text-7xl sm:text-8xl md:text-8xl lg:text-9xl",
+              },
+              {
+                text: "Russell",
+                className:
+                  "block text-7xl sm:text-8xl md:text-8xl lg:text-9xl text-[var(--muted)]",
+              },
+              {
+                text: "Prajasantosa",
+                className:
+                  "block text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-[var(--subtle)]",
+                isLast: true,
+              },
+            ]}
+          />
         </h1>
 
         {/* Subline: role + journey path */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.1, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.8, delay: SUBLINE_AT, ease: [0.22, 1, 0.36, 1] }}
           className="mt-10 flex flex-col md:flex-row md:items-end md:justify-between gap-8"
         >
           <div className="max-w-xl">
@@ -367,7 +442,7 @@ export function Hero() {
           href="#journey"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 1.6 }}
+          transition={{ duration: 1, delay: CTA_AT }}
           className="mt-16 md:mt-20 inline-flex items-center gap-3 font-mono-meta text-xs uppercase tracking-[0.2em] text-[var(--muted)] hover:text-[var(--accent)] transition-colors group"
         >
           Explore the journey

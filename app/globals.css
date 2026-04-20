@@ -256,6 +256,20 @@ textarea {
   }
 }
 
+/* Typewriter caret blink — held solid for ~50% of the cycle, then off
+ * for the rest, classic terminal feel. Applied only after typing has
+ * settled; during typing the caret is solid so the eye tracks it. */
+@keyframes caretBlink {
+  0%, 49% { opacity: 0.95; }
+  50%, 100% { opacity: 0; }
+}
+.animate-caret-blink {
+  animation: caretBlink 1.05s step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-caret-blink { animation: none !important; opacity: 0.95; }
+}
+
 /* Card base */
 .card {
   background: var(--surface);
