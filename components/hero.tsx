@@ -437,7 +437,6 @@ export function Hero() {
           </div>
         </motion.div>
 
-        {/* CTA */}
         <motion.a
           href="#journey"
           initial={{ opacity: 0 }}

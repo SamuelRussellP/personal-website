@@ -10,16 +10,18 @@ type SoundContextValue = {
   toggle: () => void;
 };
 
+type TrackConfig = {
+  src: string;
+  label: string;
+};
+
 const SoundContext = React.createContext<SoundContextValue | null>(null);
 
 const BASE_VOLUME = 0.28;
-const CROSSFADE_MS = 1800;
-const CHECK_INTERVAL_MS = 250;
+const CROSSFADE_MS = 2200;
+const CHECK_INTERVAL_MS = 160;
 
-function getTrackForPath(pathname: string | null): {
-  src: string;
-  label: string;
-} {
+function getTrackForPath(pathname: string | null): TrackConfig {
   const onHydra = pathname?.startsWith("/hydra") ?? false;
 
   if (onHydra) {
@@ -39,6 +41,7 @@ function createAudio(src: string) {
   const audio = new Audio(src);
   audio.preload = "auto";
   audio.loop = false;
+  audio.playsInline = true;
   audio.volume = 0;
   return audio;
 }
@@ -58,8 +61,7 @@ export function BackgroundAudioProvider({
 }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const track = React.useMemo(() => getTrackForPath(pathname), [pathname]);
-
-  const [enabled, setEnabled] = React.useState(true);
+  const [enabled, setEnabled] = React.useState(false);
 
   const audioARef = React.useRef<HTMLAudioElement | null>(null);
   const audioBRef = React.useRef<HTMLAudioElement | null>(null);
@@ -68,6 +70,8 @@ export function BackgroundAudioProvider({
   const monitorRef = React.useRef<number | null>(null);
   const rafRef = React.useRef<number | null>(null);
   const unlockRef = React.useRef<(() => void) | null>(null);
+  const startMonitorRef = React.useRef<() => void>(() => {});
+  const previousTrackRef = React.useRef(track.src);
 
   const getActiveAudio = React.useCallback(() => {
     return activeRef.current === "a" ? audioARef.current : audioBRef.current;
@@ -115,6 +119,30 @@ export function BackgroundAudioProvider({
     }
   }, []);
 
+  const ensureAudioNodes = React.useCallback(() => {
+    if (!audioARef.current) {
+      audioARef.current = createAudio(track.src);
+    }
+
+    if (!audioBRef.current) {
+      audioBRef.current = createAudio(track.src);
+    }
+  }, [track.src]);
+
+  const syncTrackSources = React.useCallback((src: string) => {
+    const absolute = new URL(src, window.location.origin).href;
+
+    if (audioARef.current && audioARef.current.src !== absolute) {
+      audioARef.current.src = src;
+      audioARef.current.load();
+    }
+
+    if (audioBRef.current && audioBRef.current.src !== absolute) {
+      audioBRef.current.src = src;
+      audioBRef.current.load();
+    }
+  }, []);
+
   const attemptPlay = React.useCallback(
     async (
       audio: HTMLAudioElement | null,
@@ -124,7 +152,7 @@ export function BackgroundAudioProvider({
 
       const bootstrapMuted = options?.bootstrapMuted ?? false;
       const previousMuted = audio.muted;
-      const targetVolume = audio.volume > 0 ? audio.volume : BASE_VOLUME;
+      const previousVolume = audio.volume;
 
       if (bootstrapMuted) {
         audio.muted = true;
@@ -136,14 +164,14 @@ export function BackgroundAudioProvider({
 
         if (bootstrapMuted) {
           audio.muted = previousMuted;
-          audio.volume = targetVolume;
+          audio.volume = previousVolume;
         }
 
         return true;
       } catch {
         if (bootstrapMuted) {
           audio.muted = previousMuted;
-          audio.volume = targetVolume;
+          audio.volume = previousVolume;
         }
 
         return false;
@@ -156,13 +184,17 @@ export function BackgroundAudioProvider({
     async (audio: HTMLAudioElement | null) => {
       clearUnlockListeners();
 
-      // Try a muted bootstrap first because most browsers permit muted autoplay.
-      // Once playback is running, we restore normal volume immediately.
       const started = await attemptPlay(audio, { bootstrapMuted: true });
       if (started) return true;
 
       const retry = () => {
-        void attemptPlay(getActiveAudio());
+        void attemptPlay(getActiveAudio(), { bootstrapMuted: true }).then(
+          (retryStarted) => {
+            if (!retryStarted) return;
+            setEnabled(true);
+            startMonitorRef.current();
+          }
+        );
         clearUnlockListeners();
       };
 
@@ -173,10 +205,12 @@ export function BackgroundAudioProvider({
 
       document.addEventListener("pointerdown", retry, pointerOptions);
       document.addEventListener("keydown", retry, { once: true });
+      document.addEventListener("touchend", retry, pointerOptions);
 
       unlockRef.current = () => {
         document.removeEventListener("pointerdown", retry, pointerOptions);
         document.removeEventListener("keydown", retry);
+        document.removeEventListener("touchend", retry, pointerOptions);
       };
 
       return false;
@@ -202,7 +236,7 @@ export function BackgroundAudioProvider({
       incoming.currentTime = 0;
       incoming.volume = 0;
 
-      const started = await attemptPlay(incoming);
+      const started = await attemptPlay(incoming, { bootstrapMuted: true });
       if (!started) {
         crossfadingRef.current = false;
         return;
@@ -259,57 +293,75 @@ export function BackgroundAudioProvider({
   }, [crossfade, enabled, getActiveAudio, stopMonitor, track.src]);
 
   React.useEffect(() => {
-    if (audioARef.current && audioBRef.current) return;
+    startMonitorRef.current = startMonitor;
+  }, [startMonitor]);
 
-    audioARef.current = createAudio(track.src);
-    audioBRef.current = createAudio(track.src);
-  }, [track.src]);
+  const startPlayback = React.useCallback(
+    async (src: string) => {
+      ensureAudioNodes();
+      syncTrackSources(src);
 
-  React.useEffect(() => {
-    const audioA = audioARef.current;
-    const audioB = audioBRef.current;
+      clearUnlockListeners();
+      stopMonitor();
+      stopRaf();
+      crossfadingRef.current = false;
+      pauseAll();
+      setEnabled(false);
 
-    if (!audioA || !audioB) return;
+      const active = getActiveAudio();
+      if (!active) return;
 
-    if (audioA.src !== new URL(track.src, window.location.origin).href) {
-      audioA.src = track.src;
-      audioA.load();
-    }
+      active.currentTime = 0;
+      active.muted = false;
+      active.volume = BASE_VOLUME;
 
-    if (audioB.src !== new URL(track.src, window.location.origin).href) {
-      audioB.src = track.src;
-      audioB.load();
-    }
-
-    if (!enabled) return;
-
-    const active = getActiveAudio();
-    if (!active) return;
-
-    active.currentTime = 0;
-    active.volume = BASE_VOLUME;
-
-    void ensureUnlocked(active).then((started) => {
+      const started = await ensureUnlocked(active);
       if (!started) return;
+
+      setEnabled(true);
       startMonitor();
-    });
-  }, [enabled, ensureUnlocked, getActiveAudio, startMonitor, track.src]);
+    },
+    [
+      clearUnlockListeners,
+      ensureAudioNodes,
+      ensureUnlocked,
+      getActiveAudio,
+      pauseAll,
+      startMonitor,
+      stopMonitor,
+      stopRaf,
+      syncTrackSources,
+    ]
+  );
 
-  React.useEffect(() => {
-    if (enabled) return;
-
+  const stopPlayback = React.useCallback(() => {
     clearUnlockListeners();
     stopMonitor();
     stopRaf();
     crossfadingRef.current = false;
     pauseAll();
-  }, [clearUnlockListeners, enabled, pauseAll, stopMonitor, stopRaf]);
+    setEnabled(false);
+  }, [clearUnlockListeners, pauseAll, stopMonitor, stopRaf]);
+
+  React.useEffect(() => {
+    ensureAudioNodes();
+    syncTrackSources(track.src);
+  }, [ensureAudioNodes, syncTrackSources, track.src]);
+
+  React.useEffect(() => {
+    const trackChanged = previousTrackRef.current !== track.src;
+    previousTrackRef.current = track.src;
+
+    if (!enabled || !trackChanged) return;
+    void startPlayback(track.src);
+  }, [enabled, startPlayback, track.src]);
 
   React.useEffect(() => {
     const onVisibilityChange = () => {
       if (!enabled) return;
 
       if (document.hidden) {
+        stopMonitor();
         getActiveAudio()?.pause();
         getInactiveAudio()?.pause();
         return;
@@ -322,8 +374,9 @@ export function BackgroundAudioProvider({
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [enabled, ensureUnlocked, getActiveAudio, getInactiveAudio, startMonitor]);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [enabled, ensureUnlocked, getActiveAudio, getInactiveAudio, startMonitor, stopMonitor]);
 
   React.useEffect(() => {
     return () => {
@@ -335,8 +388,13 @@ export function BackgroundAudioProvider({
   }, [clearUnlockListeners, pauseAll, stopMonitor, stopRaf]);
 
   const toggle = React.useCallback(() => {
-    setEnabled((current) => !current);
-  }, []);
+    if (enabled) {
+      stopPlayback();
+      return;
+    }
+
+    void startPlayback(track.src);
+  }, [enabled, startPlayback, stopPlayback, track.src]);
 
   return (
     <SoundContext.Provider value={{ enabled, toggle }}>
