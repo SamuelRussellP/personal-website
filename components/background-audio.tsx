@@ -20,6 +20,9 @@ const SoundContext = React.createContext<SoundContextValue | null>(null);
 const BASE_VOLUME = 0.28;
 const CROSSFADE_MS = 2200;
 const CHECK_INTERVAL_MS = 160;
+const CROSSFADE_STARTUP_GUARD_MS = 700;
+const CROSSFADE_END_TOLERANCE_MS = 140;
+const LOOP_HEAD_TRIM_SECONDS = 0.045;
 
 function getTrackForPath(pathname: string | null): TrackConfig {
   const onHydra = pathname?.startsWith("/hydra") ?? false;
@@ -219,7 +222,7 @@ export function BackgroundAudioProvider({
   );
 
   const crossfade = React.useCallback(
-    async (incomingSrc: string) => {
+    async (incomingSrc: string, remainingMsAtTrigger?: number) => {
       const active = getActiveAudio();
       const incoming = getInactiveAudio();
 
@@ -233,7 +236,7 @@ export function BackgroundAudioProvider({
         incoming.load();
       }
 
-      incoming.currentTime = 0;
+      incoming.currentTime = LOOP_HEAD_TRIM_SECONDS;
       incoming.volume = 0;
 
       const started = await attemptPlay(incoming, { bootstrapMuted: true });
@@ -243,13 +246,40 @@ export function BackgroundAudioProvider({
       }
 
       let startAt: number | null = null;
+      const warmupMs = Math.max(
+        0,
+        Math.min(
+          CROSSFADE_STARTUP_GUARD_MS,
+          (remainingMsAtTrigger ?? CROSSFADE_MS) - CROSSFADE_MS
+        )
+      );
+      const fadeDurationMs = Math.max(
+        180,
+        Math.min(
+          CROSSFADE_MS,
+          (remainingMsAtTrigger ?? CROSSFADE_MS) - warmupMs - CROSSFADE_END_TOLERANCE_MS
+        )
+      );
 
       const tick = (time: number) => {
-        if (startAt === null) {
-          startAt = time;
+        if (!crossfadingRef.current) {
+          rafRef.current = null;
+          return;
         }
 
-        const progress = Math.min(1, (time - startAt) / CROSSFADE_MS);
+        if (startAt === null) {
+          startAt = time + warmupMs;
+        }
+
+        const elapsed = time - startAt;
+        if (elapsed < 0) {
+          active.volume = BASE_VOLUME;
+          incoming.volume = 0;
+          rafRef.current = window.requestAnimationFrame(tick);
+          return;
+        }
+
+        const progress = Math.min(1, elapsed / fadeDurationMs);
 
         active.volume = BASE_VOLUME * (1 - progress);
         incoming.volume = BASE_VOLUME * progress;
@@ -286,8 +316,11 @@ export function BackgroundAudioProvider({
       if (!Number.isFinite(duration) || duration <= 0) return;
 
       const remaining = duration - active.currentTime;
-      if (remaining * 1000 <= CROSSFADE_MS + 120) {
-        void crossfade(track.src);
+      if (
+        remaining * 1000 <=
+        CROSSFADE_MS + CROSSFADE_STARTUP_GUARD_MS + CROSSFADE_END_TOLERANCE_MS
+      ) {
+        void crossfade(track.src, remaining * 1000);
       }
     }, CHECK_INTERVAL_MS);
   }, [crossfade, enabled, getActiveAudio, stopMonitor, track.src]);
