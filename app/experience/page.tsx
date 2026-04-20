@@ -3,13 +3,13 @@ import { Nav } from "@/components/nav";
 import { ExperiencePageClient } from "@/components/experience/page-client";
 
 export const metadata: Metadata = {
-  title: "Experience - Samuel Russell Prajasantosa",
+  title: "Experience — Samuel Russell Prajasantosa",
   description:
-    "A cinematic, lightweight interactive route built with scroll choreography, pointer response, and a restrained Three.js scene.",
+    "A career in four chapters. Jakarta-born, Malaysia-trained, now leading QA remote from Berlin. Scroll-driven, cinematic.",
   openGraph: {
-    title: "Experience - Samuel Russell Prajasantosa",
+    title: "Experience — Samuel Russell Prajasantosa",
     description:
-      "A cinematic, lightweight interactive route built with scroll choreography, pointer response, and a restrained Three.js scene.",
+      "A career in four chapters. Jakarta-born, Malaysia-trained, now leading QA remote from Berlin.",
     type: "website",
     url: "/experience",
   },

@@ -33,9 +33,9 @@ const hydraLinks: NavLink[] = [
 
 const experienceLinks: NavLink[] = [
   { href: "/", label: "Home", kind: "route" },
-  { href: "#acts", label: "Acts", kind: "anchor" },
-  { href: "#craft", label: "Craft", kind: "anchor" },
-  { href: "#connect", label: "Connect", kind: "anchor" },
+  { href: "#origin", label: "Begin", kind: "anchor" },
+  { href: "#agents", label: "Hydra", kind: "anchor" },
+  { href: "#close", label: "Connect", kind: "anchor" },
 ];
 
 export function Nav() {
