@@ -21,7 +21,7 @@ const GLYPHS =
 function ScrambleText({
   text,
   start,
-  durationMs = 1600,
+  durationMs = 2800,
   className,
 }: {
   text: string;
