@@ -56,7 +56,9 @@ function createAudio(src: string) {
   const audio = new Audio(src);
   audio.preload = "auto";
   audio.loop = false;
-  audio.playsInline = true;
+  // iOS Safari inline playback hints (typed via attributes for wider TS compatibility).
+  audio.setAttribute("playsinline", "");
+  audio.setAttribute("webkit-playsinline", "");
   audio.volume = 0;
   return audio;
 }
