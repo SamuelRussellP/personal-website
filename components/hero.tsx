@@ -430,7 +430,7 @@ export function Hero() {
             </div>
             <JourneyPath />
             <div className="font-mono-meta text-[11px] text-[var(--muted)] md:text-right">
-              Semarang → Sepang → Jakarta
+              Jakarta → Semarang → Sepang → Jakarta
               <span className="text-[var(--subtle)]"> ⇄ </span>
               Berlin
             </div>

@@ -473,7 +473,7 @@ export function Journey() {
       id="journey"
       eyebrow="The Journey"
       title="Six chapters across three countries."
-      lede="From Semarang to Sepang to Jakarta — with Berlin now on the org chart. Each stop taught me something different about building software that actually works in production."
+      lede="Jakarta-born, raised in Semarang from junior high, studied in Sepang, then back to Jakarta — with Berlin now on the org chart. Each stop taught me something different about building software that actually works in production."
     >
       {/* Thin section-scoped progress rail */}
       <div className="relative mb-12 h-px w-full bg-[var(--border)]">

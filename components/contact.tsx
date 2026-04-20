@@ -105,7 +105,10 @@ export function Contact() {
           Tailwind, and attention to detail.
         </p>
         <p className="font-mono-meta text-xs text-[var(--subtle)]">
-          {profile.origin} → {profile.currentLocation}
+          {/* Trail of meaningful stops. Born in Jakarta, formative years
+              in Semarang, university in Sepang, career back in Jakarta,
+              now collaborating with Berlin. */}
+          Jakarta · Semarang · Sepang · Jakarta
           <span className="mx-1.5">⇄</span>
           {profile.companyLocation}
         </p>
