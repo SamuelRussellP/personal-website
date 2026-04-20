@@ -13,6 +13,9 @@ type SoundContextValue = {
 type TrackConfig = {
   src: string;
   label: string;
+  headTrimSeconds: number;
+  startupGuardMs: number;
+  endToleranceMs: number;
 };
 
 const SoundContext = React.createContext<SoundContextValue | null>(null);
@@ -20,9 +23,12 @@ const SoundContext = React.createContext<SoundContextValue | null>(null);
 const BASE_VOLUME = 0.28;
 const CROSSFADE_MS = 2200;
 const CHECK_INTERVAL_MS = 160;
-const CROSSFADE_STARTUP_GUARD_MS = 700;
-const CROSSFADE_END_TOLERANCE_MS = 140;
-const LOOP_HEAD_TRIM_SECONDS = 0.045;
+const HYDRA_HEAD_TRIM_SECONDS = 0.045;
+const HYDRA_STARTUP_GUARD_MS = 700;
+const HYDRA_END_TOLERANCE_MS = 140;
+const SPACE_CHORDS_HEAD_TRIM_SECONDS = 0.09;
+const SPACE_CHORDS_STARTUP_GUARD_MS = 1000;
+const SPACE_CHORDS_END_TOLERANCE_MS = 240;
 
 function getTrackForPath(pathname: string | null): TrackConfig {
   const onHydra = pathname?.startsWith("/hydra") ?? false;
@@ -31,12 +37,18 @@ function getTrackForPath(pathname: string | null): TrackConfig {
     return {
       src: "/audio/deep-space-loop.mp3",
       label: "deep space soundtrack",
+      headTrimSeconds: HYDRA_HEAD_TRIM_SECONDS,
+      startupGuardMs: HYDRA_STARTUP_GUARD_MS,
+      endToleranceMs: HYDRA_END_TOLERANCE_MS,
     };
   }
 
   return {
     src: "/audio/space-chords-loop.mp3",
     label: "space chords soundtrack",
+    headTrimSeconds: SPACE_CHORDS_HEAD_TRIM_SECONDS,
+    startupGuardMs: SPACE_CHORDS_STARTUP_GUARD_MS,
+    endToleranceMs: SPACE_CHORDS_END_TOLERANCE_MS,
   };
 }
 
@@ -236,7 +248,7 @@ export function BackgroundAudioProvider({
         incoming.load();
       }
 
-      incoming.currentTime = LOOP_HEAD_TRIM_SECONDS;
+      incoming.currentTime = track.headTrimSeconds;
       incoming.volume = 0;
 
       const started = await attemptPlay(incoming, { bootstrapMuted: true });
@@ -249,7 +261,7 @@ export function BackgroundAudioProvider({
       const warmupMs = Math.max(
         0,
         Math.min(
-          CROSSFADE_STARTUP_GUARD_MS,
+          track.startupGuardMs,
           (remainingMsAtTrigger ?? CROSSFADE_MS) - CROSSFADE_MS
         )
       );
@@ -257,7 +269,7 @@ export function BackgroundAudioProvider({
         180,
         Math.min(
           CROSSFADE_MS,
-          (remainingMsAtTrigger ?? CROSSFADE_MS) - warmupMs - CROSSFADE_END_TOLERANCE_MS
+          (remainingMsAtTrigger ?? CROSSFADE_MS) - warmupMs - track.endToleranceMs
         )
       );
 
@@ -300,7 +312,15 @@ export function BackgroundAudioProvider({
 
       rafRef.current = window.requestAnimationFrame(tick);
     },
-    [attemptPlay, getActiveAudio, getInactiveAudio, stopRaf]
+    [
+      attemptPlay,
+      getActiveAudio,
+      getInactiveAudio,
+      stopRaf,
+      track.endToleranceMs,
+      track.headTrimSeconds,
+      track.startupGuardMs,
+    ]
   );
 
   const startMonitor = React.useCallback(() => {
@@ -318,12 +338,20 @@ export function BackgroundAudioProvider({
       const remaining = duration - active.currentTime;
       if (
         remaining * 1000 <=
-        CROSSFADE_MS + CROSSFADE_STARTUP_GUARD_MS + CROSSFADE_END_TOLERANCE_MS
+        CROSSFADE_MS + track.startupGuardMs + track.endToleranceMs
       ) {
         void crossfade(track.src, remaining * 1000);
       }
     }, CHECK_INTERVAL_MS);
-  }, [crossfade, enabled, getActiveAudio, stopMonitor, track.src]);
+  }, [
+    crossfade,
+    enabled,
+    getActiveAudio,
+    stopMonitor,
+    track.endToleranceMs,
+    track.src,
+    track.startupGuardMs,
+  ]);
 
   React.useEffect(() => {
     startMonitorRef.current = startMonitor;
