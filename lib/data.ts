@@ -39,7 +39,7 @@ export const profile = {
   tagline:
     "Building quality into software — Jakarta-born, Semarang-raised, Malaysia-trained, now shipping with Berlin.",
   intro:
-    "I'm a Software QA Team Lead based in Jakarta, leading quality remote for a Berlin startup. Born in Jakarta, raised in Semarang from junior high, studied in Malaysia, tested payments at Shopee. This is the journey so far.",
+    "I'm a Software QA Team Lead working remotely at Jakarta for a Berlin startup. Born in Jakarta, raised in Semarang from junior high, studied in Malaysia, tested payments at Shopee. This is the journey so far.",
   email: "samuel.prajasantosa@gmail.com",
   phone: "+62 817 9050 400",
   links: {
