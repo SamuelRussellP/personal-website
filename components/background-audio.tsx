@@ -401,7 +401,10 @@ export function BackgroundAudioProvider({
       }
 
       void ensureUnlocked(getActiveAudio()).then((started) => {
-        if (!started) return;
+        if (!started) {
+          stopPlayback();
+          return;
+        }
         startMonitor();
       });
     };
@@ -409,7 +412,32 @@ export function BackgroundAudioProvider({
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [enabled, ensureUnlocked, getActiveAudio, getInactiveAudio, startMonitor, stopMonitor]);
+  }, [
+    enabled,
+    ensureUnlocked,
+    getActiveAudio,
+    getInactiveAudio,
+    startMonitor,
+    stopMonitor,
+    stopPlayback,
+  ]);
+
+  React.useEffect(() => {
+    const onPageShow = () => {
+      if (!enabled || document.hidden) return;
+
+      void ensureUnlocked(getActiveAudio()).then((started) => {
+        if (!started) {
+          stopPlayback();
+          return;
+        }
+        startMonitor();
+      });
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [enabled, ensureUnlocked, getActiveAudio, startMonitor, stopPlayback]);
 
   React.useEffect(() => {
     return () => {
