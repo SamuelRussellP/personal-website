@@ -46,7 +46,7 @@ export const profile = {
     github: "https://github.com/SamuelRussellP",
     linkedin: "https://www.linkedin.com/in/samuelrussellprajasantosa/",
     thesis:
-      "https://www.springerprofessional.de/en/differentialfault-analysis-of-tinyjambu/50737738",
+      "https://link.springer.com/chapter/10.1007/978-3-031-83490-5_4",
   },
 };
 
