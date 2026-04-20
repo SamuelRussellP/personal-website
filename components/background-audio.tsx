@@ -451,7 +451,12 @@ export function BackgroundAudioProvider({
   ]);
 
   React.useEffect(() => {
-    const onPageShow = () => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        stopPlayback();
+        return;
+      }
+
       if (!enabled || document.hidden) return;
 
       void ensureUnlocked(getActiveAudio()).then((started) => {
