@@ -79,6 +79,11 @@ export function BackgroundAudioProvider({
   const pathname = usePathname();
   const track = React.useMemo(() => getTrackForPath(pathname), [pathname]);
   const [enabled, setEnabled] = React.useState(false);
+  const enabledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   const audioARef = React.useRef<HTMLAudioElement | null>(null);
   const audioBRef = React.useRef<HTMLAudioElement | null>(null);
@@ -329,7 +334,7 @@ export function BackgroundAudioProvider({
     stopMonitor();
 
     monitorRef.current = window.setInterval(() => {
-      if (!enabled || crossfadingRef.current) return;
+      if (!enabledRef.current || crossfadingRef.current) return;
 
       const active = getActiveAudio();
       if (!active) return;
@@ -347,7 +352,6 @@ export function BackgroundAudioProvider({
     }, CHECK_INTERVAL_MS);
   }, [
     crossfade,
-    enabled,
     getActiveAudio,
     stopMonitor,
     track.endToleranceMs,
