@@ -13,22 +13,62 @@ type SoundContextValue = {
 type TrackConfig = {
   src: string;
   label: string;
-  headTrimSeconds: number;
-  startupGuardMs: number;
-  endToleranceMs: number;
 };
 
 const SoundContext = React.createContext<SoundContextValue | null>(null);
 
 const BASE_VOLUME = 0.28;
-const CROSSFADE_MS = 2200;
-const CHECK_INTERVAL_MS = 160;
-const HYDRA_HEAD_TRIM_SECONDS = 0.045;
-const HYDRA_STARTUP_GUARD_MS = 700;
-const HYDRA_END_TOLERANCE_MS = 140;
-const SPACE_CHORDS_HEAD_TRIM_SECONDS = 0.09;
-const SPACE_CHORDS_STARTUP_GUARD_MS = 1000;
-const SPACE_CHORDS_END_TOLERANCE_MS = 240;
+const FADE_IN_MS = 2800;
+const FADE_OUT_MS = 2400;
+// Length of the equal-power crossfade baked into the loop seam. Ambient
+// chord material has long phase envelopes — a short crossfade still leaves a
+// perceptible seam. 500ms is well below the loop period but gives enough
+// runway for the tail and head to blend into a continuous swell.
+const LOOP_SEAM_CROSSFADE_SEC = 0.5;
+
+// Bake a short equal-power crossfade into the loop seam so `source.loop = true`
+// wraps without an audible click. The first N samples of the returned buffer
+// blend the tail of the source (fading out) with the head of the source
+// (fading in). The remainder is the middle of the source unchanged. Playing
+// this on loop produces a continuous signal at the wrap point regardless of
+// what discontinuity existed in the decoded PCM.
+function prepareSeamlessLoopBuffer(
+  ctx: BaseAudioContext,
+  source: AudioBuffer,
+  crossfadeSec: number
+): AudioBuffer {
+  const sampleRate = source.sampleRate;
+  const crossN = Math.min(
+    Math.floor(crossfadeSec * sampleRate),
+    Math.floor(source.length / 4)
+  );
+  if (crossN <= 0) return source;
+
+  const newLength = source.length - crossN;
+  const out = ctx.createBuffer(
+    source.numberOfChannels,
+    newLength,
+    sampleRate
+  );
+
+  for (let ch = 0; ch < source.numberOfChannels; ch++) {
+    const s = source.getChannelData(ch);
+    const d = out.getChannelData(ch);
+
+    for (let i = 0; i < crossN; i++) {
+      const t = i / crossN;
+      const fadeOut = Math.cos(t * Math.PI * 0.5);
+      const fadeIn = Math.sin(t * Math.PI * 0.5);
+      d[i] = s[source.length - crossN + i] * fadeOut + s[i] * fadeIn;
+    }
+
+    for (let i = crossN; i < newLength; i++) {
+      d[i] = s[i];
+    }
+  }
+
+  return out;
+}
 
 function getTrackForPath(pathname: string | null): TrackConfig {
   const onHydra = pathname?.startsWith("/hydra") ?? false;
@@ -37,30 +77,13 @@ function getTrackForPath(pathname: string | null): TrackConfig {
     return {
       src: "/audio/deep-space-loop.mp3",
       label: "deep space soundtrack",
-      headTrimSeconds: HYDRA_HEAD_TRIM_SECONDS,
-      startupGuardMs: HYDRA_STARTUP_GUARD_MS,
-      endToleranceMs: HYDRA_END_TOLERANCE_MS,
     };
   }
 
   return {
     src: "/audio/space-chords-loop.mp3",
     label: "space chords soundtrack",
-    headTrimSeconds: SPACE_CHORDS_HEAD_TRIM_SECONDS,
-    startupGuardMs: SPACE_CHORDS_STARTUP_GUARD_MS,
-    endToleranceMs: SPACE_CHORDS_END_TOLERANCE_MS,
   };
-}
-
-function createAudio(src: string) {
-  const audio = new Audio(src);
-  audio.preload = "auto";
-  audio.loop = false;
-  // iOS Safari inline playback hints (typed via attributes for wider TS compatibility).
-  audio.setAttribute("playsinline", "");
-  audio.setAttribute("webkit-playsinline", "");
-  audio.volume = 0;
-  return audio;
 }
 
 function useSoundContext() {
@@ -81,420 +104,193 @@ export function BackgroundAudioProvider({
   const [enabled, setEnabled] = React.useState(false);
   const enabledRef = React.useRef(false);
 
+  const ctxRef = React.useRef<AudioContext | null>(null);
+  const gainRef = React.useRef<GainNode | null>(null);
+  const sourceRef = React.useRef<AudioBufferSourceNode | null>(null);
+  const bufferCacheRef = React.useRef(new Map<string, Promise<AudioBuffer>>());
+  const currentSrcRef = React.useRef<string | null>(null);
+
   React.useEffect(() => {
     enabledRef.current = enabled;
   }, [enabled]);
 
-  const audioARef = React.useRef<HTMLAudioElement | null>(null);
-  const audioBRef = React.useRef<HTMLAudioElement | null>(null);
-  const activeRef = React.useRef<"a" | "b">("a");
-  const crossfadingRef = React.useRef(false);
-  const monitorRef = React.useRef<number | null>(null);
-  const rafRef = React.useRef<number | null>(null);
-  const unlockRef = React.useRef<(() => void) | null>(null);
-  const startMonitorRef = React.useRef<() => void>(() => {});
-  const previousTrackRef = React.useRef(track.src);
+  const getContext = React.useCallback(() => {
+    if (ctxRef.current) return ctxRef.current;
 
-  const getActiveAudio = React.useCallback(() => {
-    return activeRef.current === "a" ? audioARef.current : audioBRef.current;
+    const Ctx: typeof AudioContext | undefined =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctx) return null;
+
+    const ctx = new Ctx();
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(ctx.destination);
+    ctxRef.current = ctx;
+    gainRef.current = gain;
+    return ctx;
   }, []);
 
-  const getInactiveAudio = React.useCallback(() => {
-    return activeRef.current === "a" ? audioBRef.current : audioARef.current;
-  }, []);
-
-  const clearUnlockListeners = React.useCallback(() => {
-    if (unlockRef.current) {
-      unlockRef.current();
-      unlockRef.current = null;
-    }
-  }, []);
-
-  const stopMonitor = React.useCallback(() => {
-    if (monitorRef.current !== null) {
-      window.clearInterval(monitorRef.current);
-      monitorRef.current = null;
-    }
-  }, []);
-
-  const stopRaf = React.useCallback(() => {
-    if (rafRef.current !== null) {
-      window.cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-  }, []);
-
-  const pauseAll = React.useCallback(() => {
-    const audioA = audioARef.current;
-    const audioB = audioBRef.current;
-
-    if (audioA) {
-      audioA.pause();
-      audioA.currentTime = 0;
-      audioA.volume = 0;
-    }
-
-    if (audioB) {
-      audioB.pause();
-      audioB.currentTime = 0;
-      audioB.volume = 0;
-    }
-  }, []);
-
-  const ensureAudioNodes = React.useCallback(() => {
-    if (!audioARef.current) {
-      audioARef.current = createAudio(track.src);
-    }
-
-    if (!audioBRef.current) {
-      audioBRef.current = createAudio(track.src);
-    }
-  }, [track.src]);
-
-  const syncTrackSources = React.useCallback((src: string) => {
-    const absolute = new URL(src, window.location.origin).href;
-
-    if (audioARef.current && audioARef.current.src !== absolute) {
-      audioARef.current.src = src;
-      audioARef.current.load();
-    }
-
-    if (audioBRef.current && audioBRef.current.src !== absolute) {
-      audioBRef.current.src = src;
-      audioBRef.current.load();
-    }
-  }, []);
-
-  const attemptPlay = React.useCallback(
-    async (
-      audio: HTMLAudioElement | null,
-      options?: { bootstrapMuted?: boolean }
-    ) => {
-      if (!audio) return false;
-
-      const bootstrapMuted = options?.bootstrapMuted ?? false;
-      const previousMuted = audio.muted;
-      const previousVolume = audio.volume;
-
-      if (bootstrapMuted) {
-        audio.muted = true;
-        audio.volume = 0;
+  const loadBuffer = React.useCallback(
+    (ctx: AudioContext, src: string) => {
+      const cache = bufferCacheRef.current;
+      let pending = cache.get(src);
+      if (!pending) {
+        pending = fetch(src)
+          .then((res) => res.arrayBuffer())
+          .then((ab) => ctx.decodeAudioData(ab))
+          .then((buf) =>
+            prepareSeamlessLoopBuffer(ctx, buf, LOOP_SEAM_CROSSFADE_SEC)
+          );
+        cache.set(src, pending);
       }
-
-      try {
-        await audio.play();
-
-        if (bootstrapMuted) {
-          audio.muted = previousMuted;
-          audio.volume = previousVolume;
-        }
-
-        return true;
-      } catch {
-        if (bootstrapMuted) {
-          audio.muted = previousMuted;
-          audio.volume = previousVolume;
-        }
-
-        return false;
-      }
+      return pending;
     },
     []
   );
 
-  const ensureUnlocked = React.useCallback(
-    async (audio: HTMLAudioElement | null) => {
-      clearUnlockListeners();
+  const rampGain = React.useCallback((target: number, durationMs: number) => {
+    const ctx = ctxRef.current;
+    const gain = gainRef.current;
+    if (!ctx || !gain) return;
+    const now = ctx.currentTime;
+    const from = gain.gain.value;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(from, now);
 
-      const started = await attemptPlay(audio, { bootstrapMuted: true });
-      if (started) return true;
+    // Half-cosine S-curve: soft at both ends so the fade has no audible onset
+    // or cut — it eases in, glides through, and eases out.
+    const steps = 256;
+    const curve = new Float32Array(steps);
+    for (let i = 0; i < steps; i++) {
+      const t = i / (steps - 1);
+      const k = 0.5 - 0.5 * Math.cos(Math.PI * t);
+      curve[i] = from + (target - from) * k;
+    }
+    gain.gain.setValueCurveAtTime(curve, now, durationMs / 1000);
+  }, []);
 
-      const retry = () => {
-        void attemptPlay(getActiveAudio(), { bootstrapMuted: true }).then(
-          (retryStarted) => {
-            if (!retryStarted) return;
-            setEnabled(true);
-            startMonitorRef.current();
-          }
-        );
-        clearUnlockListeners();
-      };
+  const stopSource = React.useCallback((fadeOut: boolean) => {
+    const source = sourceRef.current;
+    const ctx = ctxRef.current;
+    sourceRef.current = null;
+    currentSrcRef.current = null;
+    if (!source) return;
 
-      const pointerOptions: AddEventListenerOptions = {
-        once: true,
-        passive: true,
-      };
+    const stopAt =
+      fadeOut && ctx ? ctx.currentTime + FADE_OUT_MS / 1000 + 0.2 : 0;
+    try {
+      if (stopAt) source.stop(stopAt);
+      else source.stop();
+    } catch {
+      // already stopped
+    }
+    source.disconnect();
+  }, []);
 
-      document.addEventListener("pointerdown", retry, pointerOptions);
-      document.addEventListener("keydown", retry, { once: true });
-      document.addEventListener("touchend", retry, pointerOptions);
-
-      unlockRef.current = () => {
-        document.removeEventListener("pointerdown", retry, pointerOptions);
-        document.removeEventListener("keydown", retry);
-        document.removeEventListener("touchend", retry, pointerOptions);
-      };
-
-      return false;
-    },
-    [attemptPlay, clearUnlockListeners, getActiveAudio]
-  );
-
-  const crossfade = React.useCallback(
-    async (incomingSrc: string, remainingMsAtTrigger?: number) => {
-      const active = getActiveAudio();
-      const incoming = getInactiveAudio();
-
-      if (!active || !incoming || crossfadingRef.current) return;
-      crossfadingRef.current = true;
-
-      stopRaf();
-
-      if (incoming.src !== new URL(incomingSrc, window.location.origin).href) {
-        incoming.src = incomingSrc;
-        incoming.load();
-      }
-
-      incoming.currentTime = track.headTrimSeconds;
-      incoming.volume = 0;
-
-      const started = await attemptPlay(incoming, { bootstrapMuted: true });
-      if (!started) {
-        crossfadingRef.current = false;
-        return;
-      }
-
-      let startAt: number | null = null;
-      const warmupMs = Math.max(
-        0,
-        Math.min(
-          track.startupGuardMs,
-          (remainingMsAtTrigger ?? CROSSFADE_MS) - CROSSFADE_MS
-        )
-      );
-      const fadeDurationMs = Math.max(
-        180,
-        Math.min(
-          CROSSFADE_MS,
-          (remainingMsAtTrigger ?? CROSSFADE_MS) - warmupMs - track.endToleranceMs
-        )
-      );
-
-      const tick = (time: number) => {
-        if (!crossfadingRef.current) {
-          rafRef.current = null;
-          return;
-        }
-
-        if (startAt === null) {
-          startAt = time + warmupMs;
-        }
-
-        const elapsed = time - startAt;
-        if (elapsed < 0) {
-          active.volume = BASE_VOLUME;
-          incoming.volume = 0;
-          rafRef.current = window.requestAnimationFrame(tick);
-          return;
-        }
-
-        const progress = Math.min(1, elapsed / fadeDurationMs);
-
-        active.volume = BASE_VOLUME * (1 - progress);
-        incoming.volume = BASE_VOLUME * progress;
-
-        if (progress < 1) {
-          rafRef.current = window.requestAnimationFrame(tick);
-          return;
-        }
-
-        active.pause();
-        active.currentTime = 0;
-        active.volume = 0;
-        incoming.volume = BASE_VOLUME;
-        activeRef.current = activeRef.current === "a" ? "b" : "a";
-        crossfadingRef.current = false;
-        rafRef.current = null;
-      };
-
-      rafRef.current = window.requestAnimationFrame(tick);
-    },
-    [
-      attemptPlay,
-      getActiveAudio,
-      getInactiveAudio,
-      stopRaf,
-      track.endToleranceMs,
-      track.headTrimSeconds,
-      track.startupGuardMs,
-    ]
-  );
-
-  const startMonitor = React.useCallback(() => {
-    stopMonitor();
-
-    monitorRef.current = window.setInterval(() => {
-      if (!enabledRef.current || crossfadingRef.current) return;
-
-      const active = getActiveAudio();
-      if (!active) return;
-
-      const duration = active.duration;
-      if (!Number.isFinite(duration) || duration <= 0) return;
-
-      const remaining = duration - active.currentTime;
-      if (
-        remaining * 1000 <=
-        CROSSFADE_MS + track.startupGuardMs + track.endToleranceMs
-      ) {
-        void crossfade(track.src, remaining * 1000);
-      }
-    }, CHECK_INTERVAL_MS);
-  }, [
-    crossfade,
-    getActiveAudio,
-    stopMonitor,
-    track.endToleranceMs,
-    track.src,
-    track.startupGuardMs,
-  ]);
-
-  React.useEffect(() => {
-    startMonitorRef.current = startMonitor;
-  }, [startMonitor]);
-
-  const startPlayback = React.useCallback(
+  const start = React.useCallback(
     async (src: string) => {
-      ensureAudioNodes();
-      syncTrackSources(src);
+      const ctx = getContext();
+      const gain = gainRef.current;
+      if (!ctx || !gain) return false;
 
-      clearUnlockListeners();
-      stopMonitor();
-      stopRaf();
-      crossfadingRef.current = false;
-      pauseAll();
-      setEnabled(false);
+      if (ctx.state === "suspended") {
+        try {
+          await ctx.resume();
+        } catch {
+          return false;
+        }
+      }
 
-      const active = getActiveAudio();
-      if (!active) return;
+      let buffer: AudioBuffer;
+      try {
+        buffer = await loadBuffer(ctx, src);
+      } catch {
+        return false;
+      }
 
-      active.currentTime = 0;
-      active.muted = false;
-      active.volume = BASE_VOLUME;
+      // Tear down any existing source immediately — we're about to replace it.
+      stopSource(false);
 
-      const started = await ensureUnlocked(active);
-      if (!started) return;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(gain);
+      source.start(0);
 
-      setEnabled(true);
-      startMonitor();
+      sourceRef.current = source;
+      currentSrcRef.current = src;
+
+      rampGain(BASE_VOLUME, FADE_IN_MS);
+      return true;
     },
-    [
-      clearUnlockListeners,
-      ensureAudioNodes,
-      ensureUnlocked,
-      getActiveAudio,
-      pauseAll,
-      startMonitor,
-      stopMonitor,
-      stopRaf,
-      syncTrackSources,
-    ]
+    [getContext, loadBuffer, rampGain, stopSource]
   );
 
-  const stopPlayback = React.useCallback(() => {
-    clearUnlockListeners();
-    stopMonitor();
-    stopRaf();
-    crossfadingRef.current = false;
-    pauseAll();
-    setEnabled(false);
-  }, [clearUnlockListeners, pauseAll, stopMonitor, stopRaf]);
+  const stop = React.useCallback(() => {
+    rampGain(0, FADE_OUT_MS);
+    stopSource(true);
+  }, [rampGain, stopSource]);
 
+  // Restart when the track source changes while sound is enabled (route change).
   React.useEffect(() => {
-    ensureAudioNodes();
-    syncTrackSources(track.src);
-  }, [ensureAudioNodes, syncTrackSources, track.src]);
+    if (!enabledRef.current) return;
+    if (currentSrcRef.current === track.src) return;
+    void start(track.src);
+  }, [start, track.src]);
 
-  React.useEffect(() => {
-    const trackChanged = previousTrackRef.current !== track.src;
-    previousTrackRef.current = track.src;
-
-    if (!enabled || !trackChanged) return;
-    void startPlayback(track.src);
-  }, [enabled, startPlayback, track.src]);
-
+  // Suspend audio while the tab is hidden so it doesn't keep burning CPU / battery.
   React.useEffect(() => {
     const onVisibilityChange = () => {
-      if (!enabled) return;
-
+      const ctx = ctxRef.current;
+      if (!ctx || !enabledRef.current) return;
       if (document.hidden) {
-        stopMonitor();
-        getActiveAudio()?.pause();
-        getInactiveAudio()?.pause();
-        return;
+        void ctx.suspend().catch(() => {});
+      } else {
+        void ctx.resume().catch(() => {});
       }
-
-      void ensureUnlocked(getActiveAudio()).then((started) => {
-        if (!started) {
-          stopPlayback();
-          return;
-        }
-        startMonitor();
-      });
     };
-
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [
-    enabled,
-    ensureUnlocked,
-    getActiveAudio,
-    getInactiveAudio,
-    startMonitor,
-    stopMonitor,
-    stopPlayback,
-  ]);
+  }, []);
 
+  // iOS bfcache: pages restored from the back/forward cache have a dead
+  // AudioContext — close it and reset so the next toggle rebuilds fresh.
   React.useEffect(() => {
     const onPageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
-        stopPlayback();
-        return;
-      }
-
-      if (!enabled || document.hidden) return;
-
-      void ensureUnlocked(getActiveAudio()).then((started) => {
-        if (!started) {
-          stopPlayback();
-          return;
-        }
-        startMonitor();
-      });
+      if (!event.persisted) return;
+      stopSource(false);
+      const ctx = ctxRef.current;
+      if (ctx) void ctx.close().catch(() => {});
+      ctxRef.current = null;
+      gainRef.current = null;
+      bufferCacheRef.current = new Map();
+      setEnabled(false);
     };
-
     window.addEventListener("pageshow", onPageShow);
     return () => window.removeEventListener("pageshow", onPageShow);
-  }, [enabled, ensureUnlocked, getActiveAudio, startMonitor, stopPlayback]);
+  }, [stopSource]);
 
   React.useEffect(() => {
     return () => {
-      clearUnlockListeners();
-      stopMonitor();
-      stopRaf();
-      pauseAll();
+      stopSource(false);
+      const ctx = ctxRef.current;
+      if (ctx) void ctx.close().catch(() => {});
     };
-  }, [clearUnlockListeners, pauseAll, stopMonitor, stopRaf]);
+  }, [stopSource]);
 
   const toggle = React.useCallback(() => {
-    if (enabled) {
-      stopPlayback();
+    if (enabledRef.current) {
+      stop();
+      setEnabled(false);
       return;
     }
-
-    void startPlayback(track.src);
-  }, [enabled, startPlayback, stopPlayback, track.src]);
+    void start(track.src).then((started) => {
+      if (started) setEnabled(true);
+    });
+  }, [start, stop, track.src]);
 
   return (
     <SoundContext.Provider value={{ enabled, toggle }}>
